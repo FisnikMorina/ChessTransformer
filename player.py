@@ -119,8 +119,8 @@ class TransformerPlayer(Player):
             move = self._extract_move(decoded)
 
             if move and move in legal_ucis:
-                return random.choice(list(legal_ucis)) if legal_ucis else None
+                return move
 
-        return None
+        return random.choice(list(legal_ucis)) if legal_ucis else None
     
 
