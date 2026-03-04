@@ -3,6 +3,7 @@ from typing import Optional
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 import re
+import chess
 
 
 class TransformerPlayer(Player):
@@ -95,6 +96,8 @@ class TransformerPlayer(Player):
     
     def get_move(self, fen: str) -> Optional[str]:
         prompt = self._build_prompt(fen)
+        board = chess.Board(fen)
+        legal_ucis = {m.uci() for m in board.legal_moves}
 
         for attempt in range(1, self.retries + 1):
 
@@ -110,14 +113,12 @@ class TransformerPlayer(Player):
                     pad_token_id=self.tokenizer.pad_token_id
                 )
 
-            input_len = inputs["input_ids"].shape[1]                                           
-            decoded = self.tokenizer.decode(outputs[0][input_len:], skip_special_tokens=True)  
-
-
+            input_len = inputs["input_ids"].shape[1]
+            decoded = self.tokenizer.decode(outputs[0][input_len:], skip_special_tokens=True)
 
             move = self._extract_move(decoded)
 
-            if move:
+            if move and move in legal_ucis:
                 return move
 
         return None
