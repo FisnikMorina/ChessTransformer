@@ -15,7 +15,6 @@ class TransformerPlayer(Player):
             quantization: Optional[str] = "4bit",
             temperature: float = 0.1,
             max_new_tokens: int = 6,
-            retries: int = 15
     ):
         super().__init__(name)
 
@@ -23,7 +22,6 @@ class TransformerPlayer(Player):
         self.quantization = quantization
         self.temperature = temperature
         self.max_new_tokens = max_new_tokens
-        self.retries = retries
 
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -100,7 +98,7 @@ class TransformerPlayer(Player):
         board = chess.Board(fen)
         legal_ucis = {m.uci() for m in board.legal_moves}
 
-        for attempt in range(1, self.retries + 1):
+        try:
 
             inputs = self.tokenizer(prompt, return_tensors="pt")
             inputs = {k: v.to(self.model.device) for k, v in inputs.items()}
@@ -109,7 +107,7 @@ class TransformerPlayer(Player):
                 outputs = self.model.generate(
                     **inputs,
                     max_new_tokens=self.max_new_tokens,
-                    do_sample=True,
+                    do_sample=False,
                     temperature=self.temperature,
                     pad_token_id=self.tokenizer.pad_token_id
                 )
@@ -121,6 +119,8 @@ class TransformerPlayer(Player):
 
             if move and move in legal_ucis:
                 return move
+        except:
+            pass
 
         return random.choice(list(legal_ucis)) if legal_ucis else None
     
