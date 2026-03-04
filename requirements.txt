@@ -1,0 +1,7 @@
+requests
+huggingface
+torch
+chess
+huggingface_hub
+transformers
+peft
