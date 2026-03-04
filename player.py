@@ -4,6 +4,7 @@ import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 import re
 import chess
+import random
 
 
 class TransformerPlayer(Player):
