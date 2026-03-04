@@ -1,4 +1,4 @@
-from players import Player
+from chess_tournament.players import Player
 from typing import Optional
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
@@ -14,7 +14,7 @@ class TransformerPlayer(Player):
             quantization: Optional[str] = "4bit",
             temperature: float = 0.1,
             max_new_tokens: int = 6,
-            retries: int = 6
+            retries: int = 15
     ):
         super().__init__(name)
 
@@ -119,7 +119,7 @@ class TransformerPlayer(Player):
             move = self._extract_move(decoded)
 
             if move and move in legal_ucis:
-                return move
+                return random.choice(list(legal_ucis)) if legal_ucis else None
 
         return None
     
