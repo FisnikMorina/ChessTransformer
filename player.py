@@ -3,15 +3,6 @@ from typing import Optional
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 import re
-from abc import ABC, abstractmethod
-
-class Player(ABC):
-    def __init__(self, name: str):
-        self.name = name
-
-    @abstractmethod
-    def get_move(self, fen: str) -> Optional[str]:
-        pass
 
 
 class TransformerPlayer(Player):
