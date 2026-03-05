@@ -11,7 +11,7 @@ class TransformerPlayer(Player):
     def __init__(
             self,
             name: str,
-            model_id: str = "morinaa/chess-qwen",
+            model_id: str = "morinaa/super-chess-qwen",
             quantization: Optional[str] = "4bit",
             temperature: float = 0.1,
             max_new_tokens: int = 6,
