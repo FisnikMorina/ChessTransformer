@@ -122,6 +122,6 @@ class TransformerPlayer(Player):
         except:
             pass
 
-        return random.choice(list(legal_ucis)) if legal_ucis else None
+        return  None
     
 
