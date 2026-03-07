@@ -12,14 +12,12 @@ class TransformerPlayer(Player):
             self,
             name: str,
             model_id: str = "morinaa/chess-transformer",
-            quantization: Optional[str] = "4bit",
             temperature: float = 0.1,
             max_new_tokens: int = 6,
     ):
         super().__init__(name)
 
         self.model_id = model_id
-        self.quantization = quantization
         self.temperature = temperature
         self.max_new_tokens = max_new_tokens
 
@@ -27,55 +25,87 @@ class TransformerPlayer(Player):
 
         print(f"[{self.name}] Loading {self.model_id} on {self.device}")
 
-        # -------------------------
-        # Quantization config
-        # -------------------------
-        quant_config = None
-
-        if quantization == "4bit":
-            quant_config = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_compute_dtype=torch.float16,
-                bnb_4bit_use_double_quant=True,
-                bnb_4bit_quant_type="nf4"
-            )
-
-        elif quantization == "8bit":
-            quant_config = BitsAndBytesConfig(
-                load_in_8bit=True
-            )
-
-        elif quantization is None:
-            quant_config = None
-
-        else:
-            raise ValueError("quantization must be one of: None, '8bit', '4bit'")
         
-        # Tokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained(model_id)
+       try:
+            self.tokenizer = GPT2Tokenizer.from_pretrained(model_id)
+        except Exception:
+            self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2-medium")
+        self.tokenizer.pad_token = self.tokenizer.eos_token
 
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
+        self.model = GPT2LMHeadModel.from_pretrained(model_id)
+        self.model.to(self.device)
+        self.model.eval()
+        self.sep_token = SEP_TOKEN
+        self.sep_ids   = self.tokenizer.encode(
+            SEP_TOKEN, add_special_tokens=False
+        )
+
+        total = sum(p.numel() for p in self.model.parameters()) / 1e6
+        print(f"[{name}] Ready! ({total:.0f}M parameters on {self.device})")
 
 
-        # Model Loading
-        if quant_config:
-            self.model = AutoModelForCausalLM.from_pretrained(
-                model_id,
-                quantization_config=quant_config,
-                device_map="auto"
-            )
-        else:
-            dtype = torch.float16 if self.device == "cuda" else torch.float32
-            self.model = AutoModelForCausalLM.from_pretrained(
-                model_id,
-                torch_dtype=dtype,
-                device_map="auto"
-            )
 
-        # UCI Regex
-        self.uci_re = re.compile(r"\b[a-h][1-8][a-h][1-8][qrbn]?\b")
+    def _compute_logprob(self, prefix: str, uci_move: str) -> float:
+        try:
+            full_ids   = self.tokenizer.encode(
+                prefix + uci_move, return_tensors="pt"
+            ).to(self.device)
+            prefix_ids = self.tokenizer.encode(
+                prefix, return_tensors="pt"
+            ).to(self.device)
 
+            prefix_len = prefix_ids.shape[1]
+            move_len   = full_ids.shape[1] - prefix_len
+
+            if move_len <= 0:
+                return float("-inf")
+
+            with torch.no_grad():
+                logits    = self.model(full_ids).logits
+                log_probs = torch.nn.functional.log_softmax(
+                    logits[0], dim=-1
+                )
+
+            score = 0.0
+            for i in range(move_len):
+                pos      = prefix_len - 1 + i
+                token_id = full_ids[0, prefix_len + i]
+                score   += log_probs[pos, token_id].item()
+
+            return score / move_len
+
+        except Exception:
+            return float("-inf")
+            
+    def _score_move(self, prefix: str, uci_move: str,
+                    board: chess.Board) -> float:
+        base  = self._compute_logprob(prefix, uci_move)
+        bonus = 0.0
+
+        try:
+            move = chess.Move.from_uci(uci_move)
+
+            # Capture bonus
+            if board.is_capture(move):
+                bonus += 1.0
+
+            board.push(move)
+
+            # Check bonus
+            if board.is_check():
+                bonus += 0.5
+
+            # Checkmate — finish the game!
+            if board.is_checkmate():
+                bonus += 10.0
+
+            board.pop()
+
+        except Exception:
+            pass
+
+        return base + bonus
+                        
     def _build_prompt(self, fen: str) -> str:
         return f"""You are a chess engine.
 
@@ -94,34 +124,34 @@ class TransformerPlayer(Player):
         return match.group(0) if match else None
     
     def get_move(self, fen: str) -> Optional[str]:
-        prompt = self._build_prompt(fen)
-        board = chess.Board(fen)
-        legal_ucis = {m.uci() for m in board.legal_moves}
+        board       = chess.Board(fen)
+        legal_moves = [m.uci() for m in board.legal_moves]
+
+        if not legal_moves:
+            return None
+
+        if self.model is None:
+            return random.choice(legal_moves)
+
+        prefix = fen + self.sep_token
+        scores = {}
+
+        for uci in legal_moves:
+            scores[uci] = self._score_move(prefix, uci, board)
+
+        sorted_moves = sorted(scores.items(), key=lambda x: -x[1])
+        best_move    = sorted_moves[0][0]
 
         try:
-
-            inputs = self.tokenizer(prompt, return_tensors="pt")
-            inputs = {k: v.to(self.model.device) for k, v in inputs.items()}
-
-            with torch.no_grad():
-                outputs = self.model.generate(
-                    **inputs,
-                    max_new_tokens=self.max_new_tokens,
-                    do_sample=False,
-                    temperature=self.temperature,
-                    pad_token_id=self.tokenizer.pad_token_id
-                )
-
-            input_len = inputs["input_ids"].shape[1]
-            decoded = self.tokenizer.decode(outputs[0][input_len:], skip_special_tokens=True)
-
-            move = self._extract_move(decoded)
-
-            if move and move in legal_ucis:
-                return move
-        except:
+            board.push(chess.Move.from_uci(best_move))
+            if board.is_repetition(2) and len(sorted_moves) > 1:
+                board.pop()
+                best_move = sorted_moves[1][0]
+            else:
+                board.pop()
+        except Exception:
             pass
 
-        return  None
+        return best_move
     
 
