@@ -6,6 +6,8 @@ import re
 import chess
 import random
 
+HF_MODEL_ID = "mohammad-en/chess-engine-transformer"
+SEP_TOKEN   = " MOVE "
 
 class TransformerPlayer(Player):
     def __init__(
