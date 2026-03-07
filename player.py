@@ -26,7 +26,7 @@ class TransformerPlayer(Player):
         print(f"[{self.name}] Loading {self.model_id} on {self.device}")
 
         
-       try:
+        try:
             self.tokenizer = GPT2Tokenizer.from_pretrained(model_id)
         except Exception:
             self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2-medium")
