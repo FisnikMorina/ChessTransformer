@@ -6,7 +6,6 @@ import re
 import chess
 import random
 
-HF_MODEL_ID = "mohammad-en/chess-engine-transformer"
 SEP_TOKEN   = " MOVE "
 
 class TransformerPlayer(Player):
@@ -14,14 +13,10 @@ class TransformerPlayer(Player):
             self,
             name: str,
             model_id: str = "morinaa/chess-transformer",
-            temperature: float = 0.1,
-            max_new_tokens: int = 6,
     ):
         super().__init__(name)
 
         self.model_id = model_id
-        self.temperature = temperature
-        self.max_new_tokens = max_new_tokens
 
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
