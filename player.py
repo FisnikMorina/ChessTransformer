@@ -1,7 +1,7 @@
 from chess_tournament.players import Player
 from typing import Optional
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+from transformers import GPT2Tokenizer, GPT2LMHeadModel
 import re
 import chess
 import random
