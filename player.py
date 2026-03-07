@@ -2,7 +2,6 @@ from chess_tournament.players import Player
 from typing import Optional
 import torch
 from transformers import GPT2Tokenizer, GPT2LMHeadModel
-import re
 import chess
 import random
 
@@ -103,23 +102,6 @@ class TransformerPlayer(Player):
 
         return base + bonus
                         
-    def _build_prompt(self, fen: str) -> str:
-        return f"""You are a chess engine.
-
-  Your task is to output the BEST LEGAL MOVE for the given chess position.
-
-  STRICT OUTPUT RULES:
-  - Output EXACTLY ONE move
-  - UCI format ONLY (examples: e2e4, g1f3, e7e8q)
-  - NO explanations, NO punctuation, NO extra text
-
-  FEN: {fen}
-  Move:"""
-    
-    def _extract_move(self, text: str) -> Optional[str]:
-        match = self.uci_re.search(text)
-        return match.group(0) if match else None
-    
     def get_move(self, fen: str) -> Optional[str]:
         board       = chess.Board(fen)
         legal_moves = [m.uci() for m in board.legal_moves]
